@@ -80,6 +80,8 @@ class Args():
         parser.add_argument('-ua', '--unattended', action='store_true', required=False, help=argparse.SUPPRESS)
         parser.add_argument('-vs', '--vapoursynth', action='store_true', required=False, help="Use vapoursynth for screens (requires vs install)")
         parser.add_argument('-cleanup', '--cleanup', action='store_true', required=False, help="Clean up tmp directory")
+        parser.add_argument('--skip-prowlarr', dest='skip_prowlarr', action='store_true', required=False, help="Skip Prowlarr dupe check")
+        parser.add_argument('--prowlarr-query', dest='prowlarr_query', nargs='*', required=False, help="Override query used for Prowlarr dupe check")
 
         parser.add_argument('-fl', '--freeleech', nargs='*', required=False, help="Freeleech Percentage", default=0, dest="freeleech")
         args, before_args = parser.parse_known_args(input)

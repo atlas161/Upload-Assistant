@@ -33,6 +33,7 @@ from src.trackers.RF import RF
 from src.trackers.OE import OE
 from src.trackers.BHDTV import BHDTV
 from src.trackers.RTF import RTF
+from src.trackers.CUSTOM import YGG, C411
 import json
 from pathlib import Path
 import asyncio
@@ -48,6 +49,7 @@ import cli_ui
 from src.console import console
 from rich.markdown import Markdown
 from rich.style import Style
+from src.prowlarr import prowlarr_release_exists
 
 
 
@@ -168,6 +170,7 @@ async def do_the_thing(base_dir):
                         'trackers', 'dupe', 'debug', 'anon', 'category', 'type', 'screens', 'nohash', 'manual_edition', 'imdb', 'tmdb_manual', 'mal', 'manual', 
                         'hdb', 'ptp', 'blu', 'no_season', 'no_aka', 'no_year', 'no_dub', 'no_tag', 'no_seed', 'client', 'desclink', 'descfile', 'desc', 'draft', 'region', 'freeleech', 
                         'personalrelease', 'unattended', 'season', 'episode', 'torrent_creation', 'qbit_tag', 'qbit_cat', 'skip_imghost_upload', 'imghost', 'manual_source', 'webdv', 'hardcoded-subs'
+                        , 'skip_prowlarr', 'prowlarr_query'
                     ]
                     if meta.get(key, None) != value and key in overwrite_list:
                         saved_meta[key] = meta[key]
@@ -183,6 +186,43 @@ async def do_the_thing(base_dir):
             if str(ua).lower() == "true":
                 meta['unattended'] = True
                 console.print("[yellow]Running in Auto Mode")
+
+        trackers_for_precheck = meta.get('trackers', None) if meta.get('trackers', None) != None else config['TRACKERS']['default_trackers']
+        if isinstance(trackers_for_precheck, list) == False:
+            if isinstance(trackers_for_precheck, str) and "," in trackers_for_precheck:
+                trackers_for_precheck = trackers_for_precheck.split(',')
+            else:
+                trackers_for_precheck = [trackers_for_precheck]
+        trackers_for_precheck = [str(s).strip().upper() for s in trackers_for_precheck if str(s).strip() != ""]
+        if meta.get('manual', False) and "MANUAL" not in trackers_for_precheck:
+            trackers_for_precheck.insert(0, "MANUAL")
+
+        if meta.get('skip_prowlarr', False) == False:
+            precheck_query = meta.get('prowlarr_query') or os.path.basename(path)
+            abort_for_dupe = False
+            for t in trackers_for_precheck:
+                if t not in ("YGG", "C411"):
+                    continue
+                try:
+                    result = prowlarr_release_exists(precheck_query, tracker=t)
+                except Exception as e:
+                    console.print(f"[yellow]Prowlarr: erreur pendant la recherche ({t}): {e}")
+                    continue
+                if result.exists:
+                    msg = f"Prowlarr: release déjà présente sur {t} (score={result.match_score:.2f}) => {result.matched_title}"
+                    if meta.get('dupe', False):
+                        console.print(f"[yellow]{msg} (skip-dupe-check actif, on continue)")
+                    elif meta.get('unattended', False):
+                        console.print(f"[red]{msg}")
+                        abort_for_dupe = True
+                    else:
+                        console.print(f"[yellow]{msg}")
+                        proceed = cli_ui.ask_yes_no("Continuer quand même ?", default=False)
+                        if proceed == False:
+                            abort_for_dupe = True
+            if abort_for_dupe:
+                continue
+
         prep = Prep(screens=meta['screens'], img_host=meta['imghost'], config=config)
         meta = await prep.gather_prep(meta=meta, mode='cli') 
         meta['name_notag'], meta['name'], meta['clean_name'], meta['potential_missing'] = await prep.get_name(meta)
@@ -247,11 +287,11 @@ async def do_the_thing(base_dir):
         ####################################
         common = COMMON(config=config)
         api_trackers = ['BLU', 'AITHER', 'STC', 'R4E', 'STT', 'RF', 'ACM','LCD','LST','HUNO', 'SN', 'LT', 'NBL', 'ANT', 'JPTV', 'TDC', 'OE', 'BHDTV', 'RTF']
-        http_trackers = ['HDB', 'TTG', 'FL', 'PTER', 'HDT', 'MTV']
+        http_trackers = ['HDB', 'TTG', 'FL', 'PTER', 'HDT', 'MTV', 'YGG', 'C411']
         tracker_class_map = {
             'BLU' : BLU, 'BHD': BHD, 'AITHER' : AITHER, 'STC' : STC, 'R4E' : R4E, 'THR' : THR, 'STT' : STT, 'HP' : HP, 'PTP' : PTP, 'RF' : RF, 'SN' : SN, 
             'ACM' : ACM, 'HDB' : HDB, 'LCD': LCD, 'TTG' : TTG, 'LST' : LST, 'HUNO': HUNO, 'FL' : FL, 'LT' : LT, 'NBL' : NBL, 'ANT' : ANT, 'PTER': PTER, 'JPTV' : JPTV,
-            'TL' : TL, 'TDC' : TDC, 'HDT' : HDT, 'MTV': MTV, 'OE': OE, 'BHDTV': BHDTV, 'RTF':RTF}
+            'TL' : TL, 'TDC' : TDC, 'HDT' : HDT, 'MTV': MTV, 'OE': OE, 'BHDTV': BHDTV, 'RTF':RTF, 'YGG': YGG, 'C411': C411}
 
         for tracker in trackers:
             if meta['name'].endswith('DUPE?'):

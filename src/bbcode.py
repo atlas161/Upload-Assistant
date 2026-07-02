@@ -1,6 +1,8 @@
 import re
 import html
 import urllib.parse
+from dataclasses import dataclass
+from typing import Any, Mapping, Optional
 
 # Bold - KEEP
 # Italic - KEEP
@@ -349,3 +351,71 @@ class BBCODE:
                     spoil2comp = f"[comparison={final_sources}]{comp_images}[/comparison]"
                     desc = desc.replace(tag, spoil2comp)
         return desc
+
+
+class _SafeFormatDict(dict):
+    def __missing__(self, key: str) -> str:
+        return ""
+
+
+@dataclass(frozen=True)
+class BBCodeTemplateContext:
+    title: str
+    year: str
+    overview: str
+    poster_url: str
+    mediainfo: str
+    imdb_url: str = ""
+    tmdb_url: str = ""
+
+
+DEFAULT_YGG_TEMPLATE = (
+    "[center][size=4][b]{title} ({year})[/b][/size][/center]\n"
+    "[center][img]{poster_url}[/img][/center]\n\n"
+    "[b]Synopsis[/b]\n{overview}\n\n"
+    "[b]Liens[/b]\n{imdb_url}\n{tmdb_url}\n\n"
+    "[b]MediaInfo[/b]\n[code]{mediainfo}[/code]\n"
+)
+
+
+DEFAULT_C411_TEMPLATE = (
+    "[center][b]{title} ({year})[/b][/center]\n"
+    "[img]{poster_url}[/img]\n\n"
+    "[b]Résumé[/b]\n{overview}\n\n"
+    "[b]MediaInfo[/b]\n[code]{mediainfo}[/code]\n"
+)
+
+
+def render_bbcode_template(
+    template_text: str,
+    ctx: BBCodeTemplateContext,
+    extra: Optional[Mapping[str, Any]] = None,
+) -> str:
+    data: dict[str, Any] = {
+        "title": ctx.title,
+        "year": ctx.year,
+        "overview": ctx.overview,
+        "poster_url": ctx.poster_url,
+        "mediainfo": ctx.mediainfo,
+        "imdb_url": ctx.imdb_url,
+        "tmdb_url": ctx.tmdb_url,
+    }
+    if extra:
+        data.update(dict(extra))
+    return template_text.format_map(_SafeFormatDict(data)).strip() + "\n"
+
+
+def format_ygg(
+    ctx: BBCodeTemplateContext,
+    template_text: Optional[str] = None,
+    extra: Optional[Mapping[str, Any]] = None,
+) -> str:
+    return render_bbcode_template(template_text or DEFAULT_YGG_TEMPLATE, ctx, extra=extra)
+
+
+def format_c411(
+    ctx: BBCodeTemplateContext,
+    template_text: Optional[str] = None,
+    extra: Optional[Mapping[str, Any]] = None,
+) -> str:
+    return render_bbcode_template(template_text or DEFAULT_C411_TEMPLATE, ctx, extra=extra)
